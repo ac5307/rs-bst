@@ -23,18 +23,18 @@ struct Node<K: Ord, V> {
   COLOR: &'static bool,
 }
 
-/// Constructor for 'TreeMap'.
+/// Constructor for [TreeMap].
 impl<K: Ord, V> TreeMap<K, V> {
   #![allow(clippy::new_without_default)]
   pub const fn new() -> Self {
     Self {
-      root: ptr::null_mut(),
+      root: Node::NULL,
       size: 0,
     }
   }
 }
 
-/// Implement 'Map' for 'TreeMap'.
+/// Implement 'Map' for [TreeMap].
 impl<K: Ord, V> Map<K, V> for TreeMap<K, V> {
   fn get(&self, key: &K) -> Option<&V> {
     let node = Self::fetch_or_parent(self.root, key);
@@ -130,7 +130,7 @@ impl<K: Ord, V> Map<K, V> for TreeMap<K, V> {
   }
 }
 
-/// Private helper functions for TreeMap.
+/// Private helper functions for [TreeMap].
 impl<K: Ord, V> TreeMap<K, V> {
   fn fetch_or_parent(mut node: *mut Node<K, V>, key: &K) -> *mut Node<K, V> {
     match !node.is_null() {
@@ -211,6 +211,7 @@ impl<K: Ord, V> TreeMap<K, V> {
     if !color {
       self.balance_out(node);
     }
+    // return the boxed node for the caller.
     n
   }
 

@@ -10,11 +10,11 @@ and borrow rules.
 
 ## Goal
 The objective is to make a BST and Map trait (interface) that functions like how it is in Java.
-The way the BST is implemented does not have to exactly match its implementaton in Java, but the behavior
+The way the BST is implemented does not have to exactly match its implementation in Java, but the behavior
 of the functions added in the Map trait should.
 Although a Map trait exists, I do not plan to make more implementations of Map. Only BST at this moment.
 
 ## Other notes
-The current implementation is pointer-based. It was previously not that case when I first started.
+The current implementation is pointer-based. That was previously not the case when I first started.
 I had taken a break from the project entering January, and I worked on other Rust projects. When I came
-back to this project, I decided to make the switch for fun.
+back to this project, I decided to make the switch after learning a bit more about pointers.
