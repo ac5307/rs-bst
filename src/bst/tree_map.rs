@@ -1,5 +1,4 @@
 use crate::bst::map::Map;
-use hashbrown::HashMap;
 use std::cmp::Ordering;
 use std::{mem, ptr};
 
@@ -9,7 +8,7 @@ const FALSE: bool = false;
 #[derive(Debug)]
 pub struct TreeMap<K: Ord, V> {
   root: *mut Node<K, V>,
-  arena: HashMap<*const K, Box<Node<K, V>>>,
+  size: usize,
 }
 
 #[allow(non_snake_case)]
@@ -17,26 +16,122 @@ pub struct TreeMap<K: Ord, V> {
 struct Node<K: Ord, V> {
   key: K,
   value: V,
+  tree: *mut TreeMap<K, V>,
   LEFT: *mut Self,
   RIGHT: *mut Self,
   PARENT: *mut Self,
   COLOR: &'static bool,
 }
 
-impl<K: Ord, V> Default for TreeMap<K, V> {
-  fn default() -> Self {
+/// Constructor for 'TreeMap'.
+impl<K: Ord, V> TreeMap<K, V> {
+  #![allow(clippy::new_without_default)]
+  pub const fn new() -> Self {
     Self {
       root: ptr::null_mut(),
-      arena: HashMap::with_capacity(1024),
+      size: 0,
     }
   }
 }
 
-impl<K: Ord, V> TreeMap<K, V> {
-  pub fn new() -> Self {
-    Self::default()
+/// Implement 'Map' for 'TreeMap'.
+impl<K: Ord, V> Map<K, V> for TreeMap<K, V> {
+  fn get(&self, key: &K) -> Option<&V> {
+    let node = Self::fetch_or_parent(self.root, key);
+    // if the node fetched has the matching key
+    if !node.is_null() {
+      let n = unsafe { &mut *node };
+      if n.get_key() == key {
+        return Some(n.get_val());
+      }
+    }
+    // otherwise, return None.
+    None
   }
 
+  fn put(&mut self, key: K, value: V) -> Option<V> {
+    let node = Self::fetch_or_parent(self.root, &key);
+    let ptr: *mut Node<K, V>;
+
+    if node.is_null() {
+      // 'node' is only null if no mappings exist, so set the root.
+      let bx = Box::new(Node::new(key, value, self));
+      ptr = Box::into_raw(bx);
+      self.root = ptr;
+    } else {
+      // otherwise
+      let n = unsafe { &mut *node };
+
+      // if the key exists in the map.
+      if *n.get_key() == key {
+        return Some(n.set_val(value));
+      } else {
+        // otherwise, it's a new mapping.
+        let bx = Box::new(Node::new(key, value, self));
+
+        if *bx < *n {
+          n.set_left({
+            ptr = Box::into_raw(bx);
+            ptr
+          });
+        } else {
+          n.set_right({
+            ptr = Box::into_raw(bx);
+            ptr
+          });
+        }
+        // exits match
+      }
+    }
+    self.size += 1;
+    self.balance_in(ptr);
+    None
+  }
+
+  fn remove(&mut self, key: &K) -> Option<V> {
+    let node = Self::fetch_or_parent(self.root, key);
+    // if the node fetched has the matching key
+    if !node.is_null() && unsafe { (*node).get_key() == key } {
+      self.size -= 1;
+      return Some(self.delete(node)).map(|n| n.value);
+    }
+    None
+  }
+
+  fn replace(&mut self, key: &K, value: V) -> Option<V> {
+    let node = Self::fetch_or_parent(self.root, key);
+    // if the node fetched has the matching key
+    if !node.is_null()
+      && let n = unsafe { &mut *node }
+      && n.get_key() == key
+    {
+      return Some(n.set_val(value));
+    }
+    // otherwise, return None.
+    None
+  }
+
+  fn is_empty(&self) -> bool {
+    self.root.is_null()
+  }
+
+  fn size(&self) -> usize {
+    self.size
+  }
+
+  fn contains_key(&self, key: &K) -> bool {
+    let node = Self::fetch_or_parent(self.root, key);
+    !node.is_null() && unsafe { (*node).get_key() == key }
+  }
+
+  fn clear(&mut self) {
+    self.root = Node::NULL;
+    self.size = 0;
+  }
+}
+
+/// Private helper functions for TreeMap.
+impl<K: Ord, V> TreeMap<K, V> {
   fn fetch_or_parent(mut node: *mut Node<K, V>, key: &K) -> *mut Node<K, V> {
     match !node.is_null() {
       TRUE => unsafe {
@@ -67,12 +162,12 @@ impl<K: Ord, V> TreeMap<K, V> {
     }
   }
 
-  fn delete(&mut self, mut node: *mut Node<K, V>) -> Option<Box<Node<K, V>>> {
+  fn delete(&mut self, mut node: *mut Node<K, V>) -> Box<Node<K, V>> {
     let color = Node::color_of(node);
-    let n = unsafe {
-      let key = (*node).get_key() as *const K;
-      self.arena.remove(&key)
-    };
+
+    // Reconstruct a boxed Node from the raw pointer.
+    let n = unsafe { Box::from_raw(node) };
+
     let left = Node::left_of(node);
     let right = Node::right_of(node);
 
@@ -234,101 +329,15 @@ impl<K: Ord, V> TreeMap<K, V> {
   }
 }
 
-impl<K: Ord, V: Clone> Map<K, V> for TreeMap<K, V> {
-  fn get(&self, key: &K) -> Option<&V> {
-    let node = Self::fetch_or_parent(self.root, key);
-    // if the node fetched has the matching key
-    if !node.is_null() {
-      let n = unsafe { &mut *node };
-      if n.get_key() == key {
-        return Some(n.get_val());
-      }
-    }
-    // otherwise, return None.
-    None
-  }
-
-  fn put(&mut self, key: K, value: V) -> Option<V> {
-    let node = Self::fetch_or_parent(self.root, &key);
-    let mut nbox: Box<Node<K, V>>;
-
-    if node.is_null() {
-      // 'node' is only null if no mappings exist, so set the root.
-      nbox = Box::new(Node::new(key, value));
-      self.root = &mut *nbox;
-    } else {
-      // otherwise
-      let n = unsafe { &mut *node };
-
-      // if the key exists in the map.
-      if *n.get_key() == key {
-        return Some(n.set_val(value));
-      } else {
-        // otherwise, it's a new mapping.
-        nbox = Box::new(Node::new(key, value));
-
-        if *nbox < *n {
-          n.set_left(&mut *nbox);
-        } else {
-          n.set_right(&mut *nbox);
-        }
-        // exits match
-      }
-    }
-    self.balance_in(&mut *nbox);
-    self.arena.insert(nbox.get_key(), nbox);
-    None
-  }
-
-  fn remove(&mut self, key: &K) -> Option<V> {
-    let node = Self::fetch_or_parent(self.root, key);
-    // if the node fetched has the matching key
-    if !node.is_null() && unsafe { (*node).get_key() == key } {
-      return self.delete(node).map(|n| n.value);
-    }
-    None
-  }
-
-  fn replace(&mut self, key: &K, value: V) -> Option<V> {
-    let node = Self::fetch_or_parent(self.root, key);
-    // if the node fetched has the matching key
-    if !node.is_null()
-      && let n = unsafe { &mut *node }
-      && n.get_key() == key
-    {
-      return Some(n.set_val(value));
-    }
-    // otherwise, return None.
-    None
-  }
-
-  fn is_empty(&self) -> bool {
-    self.arena.is_empty()
-  }
-
-  fn size(&self) -> usize {
-    self.arena.len()
-  }
-
-  fn contains_key(&self, key: &K) -> bool {
-    let node = Self::fetch_or_parent(self.root, key);
-    !node.is_null() && unsafe { (*node).get_key() == key }
-  }
-
-  fn clear(&mut self) {
-    self.root = Node::NULL;
-    self.arena.clear();
-  }
-}
-
 impl<K: Ord, V> Node<K, V> {
   const NULL: *mut Node<K, V> = ptr::null_mut();
 
   /// Create a new [Node] instance.
-  const fn new(k: K, v: V) -> Self {
+  const fn new(k: K, v: V, t: &mut TreeMap<K, V>) -> Self {
     Self {
       key: k,
       value: v,
+      tree: t,
       LEFT: Self::NULL,
       RIGHT: Self::NULL,
       PARENT: Self::NULL,
@@ -388,14 +397,16 @@ impl<K: Ord, V> Node<K, V> {
   fn set_parent(&mut self, parent: *mut Self) {
     self.PARENT = parent;
 
-    if !parent.is_null() {
-      unsafe {
+    unsafe {
+      if !parent.is_null() {
         let p = &mut *parent;
         if self < p {
           p.LEFT = self;
         } else if self > p {
           p.RIGHT = self;
         }
+      } else {
+        (&mut *self.tree).root = self;
       }
     }
   }
