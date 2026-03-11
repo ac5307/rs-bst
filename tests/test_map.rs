@@ -95,6 +95,8 @@ fn test_all_data() {
   for (idx, data) in TEST_DATA.iter().enumerate() {
     let rm = map.remove(&idx).unwrap();
 
+    let ww = 1 + 1;
+
     assert_eq!(rm, *data);
   }
   assert!(map.is_empty());

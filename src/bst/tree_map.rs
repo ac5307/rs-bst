@@ -1,9 +1,8 @@
 use crate::bst::map::Map;
-use std::cmp::Ordering;
-use std::{mem, ptr};
+use core::{cmp::Ordering, mem, ptr};
 
-const TRUE: bool = true;
-const FALSE: bool = false;
+const TRUE: bool = true; // Red
+const FALSE: bool = false; // Black
 
 #[derive(Debug)]
 pub struct TreeMap<K: Ord, V> {
@@ -34,7 +33,7 @@ impl<K: Ord, V> TreeMap<K, V> {
   }
 }
 
-/// Implement 'Map' for [TreeMap].
+/// Implement [Map] for [TreeMap].
 impl<K: Ord, V> Map<K, V> for TreeMap<K, V> {
   fn get(&self, key: &K) -> Option<&V> {
     let node = Self::fetch_or_parent(self.root, key);
@@ -70,15 +69,11 @@ impl<K: Ord, V> Map<K, V> for TreeMap<K, V> {
         let bx = Box::new(Node::new(key, value, self));
 
         if *bx < *n {
-          n.set_left({
-            ptr = Box::into_raw(bx);
-            ptr
-          });
+          ptr = Box::into_raw(bx);
+          n.set_left(ptr);
         } else {
-          n.set_right({
-            ptr = Box::into_raw(bx);
-            ptr
-          });
+          ptr = Box::into_raw(bx);
+          n.set_right(ptr);
         }
         // exits match
       }
@@ -93,7 +88,7 @@ impl<K: Ord, V> Map<K, V> for TreeMap<K, V> {
     // if the node fetched has the matching key
     if !node.is_null() && unsafe { (*node).get_key() == key } {
       self.size -= 1;
-      return Some(self.delete(node)).map(|n| n.value);
+      return Some(self.delete(node).value);
     }
     None
   }
@@ -132,6 +127,7 @@ impl<K: Ord, V> Map<K, V> for TreeMap<K, V> {
 
 /// Private helper functions for [TreeMap].
 impl<K: Ord, V> TreeMap<K, V> {
+  ///
   fn fetch_or_parent(mut node: *mut Node<K, V>, key: &K) -> *mut Node<K, V> {
     match !node.is_null() {
       TRUE => unsafe {
