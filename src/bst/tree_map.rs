@@ -1,5 +1,7 @@
-use crate::bst::map::Map;
+use alloc::boxed::Box;
 use core::{cmp::Ordering, mem, ptr};
+
+use super::map::Map;
 
 const TRUE: bool = true; // Red
 const FALSE: bool = false; // Black
@@ -22,7 +24,7 @@ struct Node<K: Ord, V> {
   COLOR: &'static bool,
 }
 
-/// Constructor for [TreeMap].
+/// Public functions for [TreeMap].
 impl<K: Ord, V> TreeMap<K, V> {
   #![allow(clippy::new_without_default)]
   pub const fn new() -> Self {
@@ -127,7 +129,8 @@ impl<K: Ord, V> Map<K, V> for TreeMap<K, V> {
 
 /// Private helper functions for [TreeMap].
 impl<K: Ord, V> TreeMap<K, V> {
-  ///
+  /// Perform a binary search for a pointer to a [Node] with the given
+  /// root node and a key.
   fn fetch_or_parent(mut node: *mut Node<K, V>, key: &K) -> *mut Node<K, V> {
     match !node.is_null() {
       TRUE => unsafe {

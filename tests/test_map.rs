@@ -84,7 +84,7 @@ fn test_all_data() {
   for (idx, data) in TEST_DATA.iter().enumerate() {
     map.put(idx, *data);
 
-    // test if the data was actually added, and this
+    // verify if the data was actually added, and this
     // would also verify that map works as it grows.
     assert!(map.contains_key(&idx));
     let d = map.get(&idx).unwrap();
@@ -95,8 +95,8 @@ fn test_all_data() {
   for (idx, data) in TEST_DATA.iter().enumerate() {
     let rm = map.remove(&idx).unwrap();
 
-    let ww = 1 + 1;
-
+    // verify that the value returned matches
+    // the data in the vector.
     assert_eq!(rm, *data);
   }
   assert!(map.is_empty());
@@ -121,8 +121,13 @@ fn test_stress() {
   assert_eq!(map.size(), STRESS_NUM);
 
   for i in 0..STRESS_NUM {
-    let rm = map.remove(&i).unwrap();
-    assert_eq!(rm, d2);
+    let data = map.get(&i).unwrap();
+    assert_eq!(*data, d2);
   }
+  assert_eq!(map.size(), STRESS_NUM);
+
+  // dump the map.
+  map.clear();
+  // verify the map is empty.
   assert!(map.is_empty());
 }
