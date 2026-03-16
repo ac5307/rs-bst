@@ -57,7 +57,7 @@ impl<K: Ord, V> Map<K, V> for TreeMap<K, V> {
     if node.is_null() {
       // 'node' is only null if no mappings exist, so set the root.
       let bx = Box::new(Node::new(key, value, self));
-      ptr = Box::into_raw(bx);
+      ptr = bx.into_ptr();
       self.root = ptr;
     } else {
       // otherwise
@@ -71,10 +71,10 @@ impl<K: Ord, V> Map<K, V> for TreeMap<K, V> {
         let bx = Box::new(Node::new(key, value, self));
 
         if *bx < *n {
-          ptr = Box::into_raw(bx);
+          ptr = bx.into_ptr();
           n.set_left(ptr);
         } else {
-          ptr = Box::into_raw(bx);
+          ptr = bx.into_ptr();
           n.set_right(ptr);
         }
         // exits match
@@ -122,8 +122,15 @@ impl<K: Ord, V> Map<K, V> for TreeMap<K, V> {
   }
 
   fn clear(&mut self) {
+    Node::erase(self.root);
     self.root = Node::NULL;
     self.size = 0;
+  }
+}
+
+impl<K: Ord, V> Drop for TreeMap<K, V> {
+  fn drop(&mut self) {
+    self.clear();
   }
 }
 
@@ -131,6 +138,8 @@ impl<K: Ord, V> Map<K, V> for TreeMap<K, V> {
 impl<K: Ord, V> TreeMap<K, V> {
   /// Perform a binary search for a pointer to a [Node] with the given
   /// root node and a key.
+  /// This either returns the [Node] with the specified key if found or
+  /// its parent if not found.
   fn fetch_or_parent(mut node: *mut Node<K, V>, key: &K) -> *mut Node<K, V> {
     match !node.is_null() {
       TRUE => unsafe {
@@ -164,8 +173,8 @@ impl<K: Ord, V> TreeMap<K, V> {
   fn delete(&mut self, mut node: *mut Node<K, V>) -> Box<Node<K, V>> {
     let color = Node::color_of(node);
 
-    // Reconstruct a boxed Node from the raw pointer.
-    let n = unsafe { Box::from_raw(node) };
+    // Reconstruct a boxed node from the raw pointer.
+    let n = Node::from_ptr(node);
 
     let left = Node::left_of(node);
     let right = Node::right_of(node);
@@ -233,10 +242,8 @@ impl<K: Ord, V> TreeMap<K, V> {
           node = grandparent;
         } else {
           if Node::right_of(parent) == node {
-            Node::rotate_left({
-              node = parent;
-              node
-            });
+            node = parent;
+            Node::rotate_left(node);
           }
           Node::rotate_right(grandparent);
         }
@@ -249,16 +256,14 @@ impl<K: Ord, V> TreeMap<K, V> {
           node = grandparent;
         } else {
           if Node::left_of(parent) == node {
-            Node::rotate_right({
-              node = parent;
-              node
-            });
+            node = parent;
+            Node::rotate_right(node);
           }
           Node::rotate_left(grandparent);
         }
       }
     }
-    Node::color_assign(self.root, &FALSE);
+    Node::color_assign(self.root, &FALSE); // -> black
   }
 
   fn balance_out(&self, mut node: *mut Node<K, V>) {
@@ -278,8 +283,7 @@ impl<K: Ord, V> TreeMap<K, V> {
         }
         // if both sibling's children are black,
         if !Node::color_of(Node::left_of(sibling)) && !Node::color_of(Node::right_of(sibling)) {
-          // set sibling to red.
-          Node::color_assign(sibling, &TRUE);
+          Node::color_assign(sibling, &TRUE); // -> red
           node = parent;
         } else {
           // if sibling's right child is black,
@@ -307,7 +311,7 @@ impl<K: Ord, V> TreeMap<K, V> {
         }
         // if both sibling's children are black,
         if !Node::color_of(Node::right_of(sibling)) && !Node::color_of(Node::left_of(sibling)) {
-          Node::color_assign(sibling, &TRUE);
+          Node::color_assign(sibling, &TRUE); // -> red
           node = parent;
         } else {
           // if sibling's left child is black,
@@ -556,6 +560,27 @@ impl<K: Ord, V> Node<K, V> {
       },
       FALSE => Node::parent_assign(n2, Self::NULL),
     };
+  }
+
+  /// Convert a [Box] containing a [Node] into
+  /// a mutable raw pointer
+  fn into_ptr(self: Box<Self>) -> *mut Self {
+    Box::into_raw(self)
+  }
+  /// Convert a mutable pointer of a [Node] into
+  /// a [Box] owning the pointer.
+  fn from_ptr(node: *mut Self) -> Box<Self> {
+    unsafe { Box::from_raw(node) }
+  }
+
+  /// Destroy the entire tree or subtree
+  /// with the given [Node] pointer as the root.
+  fn erase(node: *mut Self) {
+    if !node.is_null() {
+      let n = Node::from_ptr(node);
+      Self::erase(n.get_left());
+      Self::erase(n.get_right());
+    }
   }
 }
 
